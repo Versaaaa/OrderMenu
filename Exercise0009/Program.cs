@@ -94,26 +94,43 @@ namespace Exercise0009
                             {
                                 Console.WriteLine("Inserisci Customer");
                                 var customer = GetCustomer(Console.ReadLine())["customer"];
-                                bool continua = true;
-                                while (continua) 
+                                var items = new Dictionary<object, List<int>>();
+                                bool c1 = true;
+                                while (c1) 
                                 {
 
-                                    
-                                    while (continua)
+                                    Console.WriteLine("Inserisci Item");
+                                    {
+                                        var item = GetItem(Console.ReadLine());
+
+                                        items[item["item"]] = new List<int>();
+
+                                        Console.WriteLine("Inserisci quantità");
+                                        items[item["item"]].Add(int.Parse(Console.ReadLine()));
+                                        Console.WriteLine("Inserisci prezzo");
+                                        items[item["item"]].Add(int.Parse(Console.ReadLine()));
+                                    }
+
+                                    bool c2 = true;
+                                    while (c2)
                                     {
                                         Console.Clear();
                                         Console.WriteLine("Vuoi continuare? (y/n)");
                                         switch(GetInput().Key)
                                         {
                                             case ConsoleKey.Y:
+                                                c2 = false;
                                                 break;
                                             case ConsoleKey.N:
-                                                continua = false;
+                                                c1 = false;
+                                                c2 = false;     
                                                 break;
                                         }
                                     }
-                                
                                 }
+
+                                InsertOrder(customer,items);
+
                             }
                             catch(InvalidOperationException)
                             {
@@ -381,6 +398,52 @@ namespace Exercise0009
                 }
             }
             return res;
+        }
+
+        static void InsertOrder(object customer, Dictionary<object,List<int>> items)
+        {
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                using (var transaction = connection.BeginTransaction())
+                {
+                    try
+                    {
+                        var query = new SqlCommand("select top(1) orderid from orders order by orderid desc", connection, transaction);
+                        var i = int.Parse(query.ExecuteScalar().ToString()) + 1;
+
+                        query = new SqlCommand($"insert into orders values({i}, @customer, '{DateTime.Now}') ", connection, transaction);
+                        query.Parameters.Add(new SqlParameter("@customer",customer));
+                        query.ExecuteNonQuery();
+
+                        query = new SqlCommand($"insert into orderitems values({i}, @item, @quantity, @price)", connection, transaction);
+                        
+                        query.Parameters.Add(new SqlParameter("@item", System.Data.SqlDbType.NVarChar, 20));   
+                        query.Parameters.Add(new SqlParameter("@quantity", System.Data.SqlDbType.Int));   
+                        query.Parameters.Add(new SqlParameter("@price", System.Data.SqlDbType.Int));   
+                        
+                        foreach (var key in items.Keys)
+                        {
+                            query.Parameters[0].Value = key.ToString();
+                            query.Parameters[1].Value = items[key][0];
+                            query.Parameters[2].Value = items[key][1];
+                            query.ExecuteNonQuery();
+                        }
+
+                        transaction.Commit();
+                    }
+                    catch(Exception ex)
+                    {
+                        Console.WriteLine(ex);
+                        transaction.Rollback();
+                        Console.ReadKey();
+                    }
+                }
+                    
+
+
+            }
         }
 
         static void x(string connectionString, string table)
